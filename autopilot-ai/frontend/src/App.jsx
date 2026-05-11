@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+
+import Planner from "./components/Planner";
 import ResearchMode from "./components/ResearchMode";
 import ExecutionMode from "./components/ExecutionMode";
 import QuickBuilderMode from "./components/QuickBuilderMode";
@@ -9,19 +12,22 @@ import WorkflowPanel from "./components/WorkflowPanel";
 const API = "";
 
 export default function App() {
-  const [mode, setMode] = useState("research");
-  const [selectedAgent, setSelectedAgent] = useState(null);
+
+  const [mode, setMode] = useState("planner");
+
   const [systemStatus, setSystemStatus] = useState(null);
+
   const [history, setHistory] = useState([]);
+
   const [agentLoading, setAgentLoading] = useState(null);
+
   const [lastResult, setLastResult] = useState(null);
 
-  /* ── Polling ──────────────────────────────────────────────── */
   const fetchStatus = useCallback(async () => {
     try {
       const r = await fetch(`${API}/status`);
       if (r.ok) setSystemStatus(await r.json());
-    } catch {}
+    } catch { }
   }, []);
 
   const fetchHistory = useCallback(async () => {
@@ -31,106 +37,163 @@ export default function App() {
         const d = await r.json();
         setHistory(d.history || []);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
+
     fetchStatus();
     fetchHistory();
-    const id = setInterval(() => { fetchStatus(); fetchHistory(); }, 3000);
-    return () => clearInterval(id);
-  }, [fetchStatus, fetchHistory]);
 
-  /* ── Dispatch ─────────────────────────────────────────────── */
-  const dispatch = async (endpoint, prompt, context = {}) => {
-    setAgentLoading(endpoint);
-    try {
-      const r = await fetch(`${API}/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, context }),
-      });
-      const data = await r.json();
-      setLastResult(data);
+    const id = setInterval(() => {
       fetchStatus();
       fetchHistory();
+    }, 3000);
+
+    return () => clearInterval(id);
+
+  }, [fetchStatus, fetchHistory]);
+
+  const dispatch = async (endpoint, prompt, context = {}) => {
+
+    setAgentLoading(endpoint);
+
+    try {
+
+      const r = await fetch(`${API}/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prompt,
+          context
+        })
+      });
+
+      const data = await r.json();
+
+      setLastResult(data);
+
+      fetchStatus();
+      fetchHistory();
+
       return data;
+
     } catch (e) {
-      const err = { agent: endpoint, status: "error", result: { error: e.message }, duration_ms: 0 };
-      setLastResult(err);
-      return err;
+
+      return {
+        error: e.message
+      };
+
     } finally {
       setAgentLoading(null);
     }
   };
 
-  /* ── Render ───────────────────────────────────────────────── */
   return (
-    <div id="app-shell" className="noise grid-bg flex h-screen flex-col overflow-hidden" style={{ background: "#020617" }}>
+    <div className="app-shell">
 
-      {/* Ambient glow orbs — purely decorative, behind everything */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute -top-48 -left-48 h-[700px] w-[700px] rounded-full bg-indigo-600/[0.035] blur-[160px]" />
-        <div className="absolute -bottom-64 -right-48 h-[800px] w-[800px] rounded-full bg-cyan-500/[0.025] blur-[180px]" />
-        <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-600/[0.02] blur-[140px]" />
-      </div>
+      <Navbar systemStatus={systemStatus} />
 
-      {/* ── Navbar ────────────────────────────────────────────── */}
-      <Navbar mode={mode} setMode={setMode} systemStatus={systemStatus} />
+      <div className="main-layout">
 
-      {/* ── Body ──────────────────────────────────────────────── */}
-      <div className="relative z-10 flex flex-1 overflow-hidden">
+        <Sidebar
+          mode={mode}
+          setMode={setMode}
+        />
 
-        {/* Sidebar — fixed 260px, never shrinks */}
-        <div className="sidebar-fixed">
-          <Sidebar
-            selectedAgent={selectedAgent}
-            setSelectedAgent={setSelectedAgent}
-            history={history}
-            systemStatus={systemStatus}
-            agentLoading={agentLoading}
-          />
-        </div>
-
-        {/* Main content area — takes remaining width */}
         <div className="content-area">
-          {/* panel-container: max-width 1400px, centered, padded */}
-          <div className="panel-container">
-            <div key={mode} className="anim-fade-up">
 
-              {mode === "research" && (
-                <ResearchMode
-                  dispatch={dispatch}
-                  agentLoading={agentLoading}
-                  lastResult={lastResult}
-                  history={history}
-                />
-              )}
+          <div className="hero">
 
-              {mode === "execution" && (
-                <ExecutionMode
-                  dispatch={dispatch}
-                  agentLoading={agentLoading}
-                  lastResult={lastResult}
-                  history={history}
-                  systemStatus={systemStatus}
-                />
-              )}
+            <div className="hero-left">
 
-              {mode === "builder" && (
-                <QuickBuilderMode
-                  dispatch={dispatch}
-                  agentLoading={agentLoading}
-                  lastResult={lastResult}
-                />
-              )}
+              <h1 className="hero-title">
+                Multi-Agent AI Workspace
+              </h1>
 
-              {mode === "workflow" && (
-                <WorkflowPanel dispatch={dispatch} />
-              )}
+              <p className="hero-sub">
+                Plan, research, execute and build complete workflows
+                with intelligent AI agents working together inside
+                one unified operating system.
+              </p>
 
             </div>
+
+            <div className="stats-grid">
+
+              <div className="stat-card">
+                <div className="stat-label">
+                  Tasks Completed
+                </div>
+
+                <div className="stat-value">
+                  {systemStatus?.tasks_completed || 0}
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-label">
+                  Total Tasks
+                </div>
+
+                <div className="stat-value">
+                  {systemStatus?.total_tasks || 0}
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-label">
+                  System Status
+                </div>
+
+                <div className="stat-value">
+                  Online
+                </div>
+              </div>
+
+            </div>
+
           </div>
+
+          {mode === "planner" && (
+            <Planner
+              dispatch={dispatch}
+              agentLoading={agentLoading}
+              lastResult={lastResult}
+            />
+          )}
+
+          {mode === "research" && (
+            <ResearchMode
+              dispatch={dispatch}
+              agentLoading={agentLoading}
+              lastResult={lastResult}
+            />
+          )}
+
+          {mode === "execution" && (
+            <ExecutionMode
+              dispatch={dispatch}
+              agentLoading={agentLoading}
+              lastResult={lastResult}
+              history={history}
+            />
+          )}
+
+          {mode === "builder" && (
+            <QuickBuilderMode
+              dispatch={dispatch}
+              agentLoading={agentLoading}
+              lastResult={lastResult}
+            />
+          )}
+
+          {mode === "workflow" && (
+            <WorkflowPanel dispatch={dispatch} />
+          )}
+
         </div>
       </div>
     </div>
